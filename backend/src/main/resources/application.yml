@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/clotherp
+    username: postgres
+    password: Root@123
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update        # change to 'validate' in production
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: core
+        format_sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+server:
+  port: 8080
+
+app:
+  jwt:
+    secret: clotherp-super-secret-jwt-key-minimum-256-bits-long
+    expiration: 900000        # 15 minutes
+    refresh-expiration: 604800000  # 7 days
