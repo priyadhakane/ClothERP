@@ -1,5 +1,6 @@
 package com.clotherp.backend.modules.auth;
 
+import com.clotherp.backend.common.Role;
 import com.clotherp.backend.modules.user.User;
 import com.clotherp.backend.modules.user.UserDTO;
 import com.clotherp.backend.modules.user.UserRepository;
@@ -14,6 +15,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -24,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -53,8 +56,7 @@ public class AuthServiceImpl implements AuthService {
 
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
-            );
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
             // success – reset failed attempts
             user.setFailedAttempts(0);
             userRepository.save(user);
@@ -83,6 +85,22 @@ public class AuthServiceImpl implements AuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
         }
 
+        // Hybrid approach: check if requesting privileged role
+        if (isPrivilegedRole(request.getRole())) {
+            // Only authenticated admins can create privileged users
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Only administrators can create users with privileged roles");
+            }
+
+            UserPrincipal userPrincipal = (UserPrincipal) auth.getPrincipal();
+            if (!isAdminRole(userPrincipal.getRole())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Only SUPER_ADMIN or OWNER can create users with privileged roles");
+            }
+        }
+
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
@@ -95,6 +113,26 @@ public class AuthServiceImpl implements AuthService {
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         return issueTokens(userDetails, user);
+    }
+
+    /**
+     * Privileged roles that require admin approval to create
+     */
+    private boolean isPrivilegedRole(Role role) {
+        Set<Role> privilegedRoles = Set.of(
+                Role.SUPER_ADMIN,
+                Role.OWNER,
+                Role.BRANCH_MANAGER,
+                Role.PURCHASE_MANAGER,
+                Role.ACCOUNTANT);
+        return privilegedRoles.contains(role);
+    }
+
+    /**
+     * Admin roles that can create other users (accepts String from UserPrincipal)
+     */
+    private boolean isAdminRole(String roleString) {
+        return "SUPER_ADMIN".equals(roleString) || "OWNER".equals(roleString);
     }
 
     @Override
@@ -139,7 +177,8 @@ public class AuthServiceImpl implements AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect");
         }
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be different from the current password");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "New password must be different from the current password");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
