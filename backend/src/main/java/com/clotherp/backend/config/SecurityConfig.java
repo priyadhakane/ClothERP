@@ -1,9 +1,9 @@
 package com.clotherp.backend.config;
 
-import com.clotherp.backend.security.JwtAuthFilter;
-import com.clotherp.backend.security.UserPrincipal;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -26,9 +26,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import com.clotherp.backend.security.JwtAuthFilter;
+import com.clotherp.backend.security.UserPrincipal;
+
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
@@ -43,7 +45,9 @@ public class SecurityConfig {
         return (request, response, authException) -> {
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"success\":false,\"statusCode\":401,\"message\":\"Unauthorized\"}");
+            response.getWriter().write(
+                "{\"success\":false,\"statusCode\":401,\"message\":\"Unauthorized\"}"
+            );
         };
     }
 
@@ -51,8 +55,10 @@ public class SecurityConfig {
     public AuditorAware<UUID> auditorAware() {
         return () -> {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof UserPrincipal userPrincipal) {
-                return Optional.of(userPrincipal.getId());
+            if (auth != null
+                    && auth.isAuthenticated()
+                    && auth.getPrincipal() instanceof UserPrincipal up) {
+                return Optional.of(up.getId());
             }
             return Optional.empty();
         };
@@ -61,8 +67,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174", "http://localhost:5175",
-                "http://localhost:5176")); // frontend URLs
+        config.setAllowedOrigins(List.of("http://localhost:5173")); // your frontend URL
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -77,7 +82,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
@@ -91,7 +97,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").hasAnyRole("SUPER_ADMIN", "OWNER")
                         .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
