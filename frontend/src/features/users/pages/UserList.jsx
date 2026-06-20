@@ -2,19 +2,21 @@ import { useEffect, useState, useRef } from 'react';
 import { userApi } from '../userApi';
 import { usePermission } from '../../../hooks/usePermission';
 import {
-  Box,
-  Typography,
-  Alert,
-  CircularProgress,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
+  Box, Typography, Alert, CircularProgress, Paper,
+  Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TablePagination, Chip,
 } from '@mui/material';
+
+const roleColors = {
+  SUPER_ADMIN: 'error',
+  OWNER: 'secondary',
+  BRANCH_MANAGER: 'primary',
+  SALES_EXECUTIVE: 'info',
+  CASHIER: 'default',
+  PURCHASE_MANAGER: 'warning',
+  WAREHOUSE_MANAGER: 'success',
+  ACCOUNTANT: 'default',
+};
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
@@ -40,7 +42,8 @@ export default function UserList() {
       setLoading(true);
       setError(null);
       try {
-        const data = await userApi.listUsers(page, rowsPerPage);
+        const response = await userApi.listUsers(page, rowsPerPage);
+        const data = response.data; // ✅ unwrap ApiResponse -> PageResponse
         if (isMounted.current) {
           setUsers(data.content || []);
           setTotalElements(data.totalElements || 0);
@@ -65,17 +68,27 @@ export default function UserList() {
     );
   }
 
-  if (loading && users.length === 0) return <CircularProgress />;
+  if (loading && users.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>Users</Typography>
-      <Paper>
+      <Typography variant="h4" gutterBottom fontWeight={700}>
+        Users
+      </Typography>
+      <Paper elevation={2} sx={{ borderRadius: 2 }}>
         <TableContainer>
           <Table>
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'action.hover' } }}>
+                <TableCell>#</TableCell>
                 <TableCell>Username</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Role</TableCell>
@@ -83,14 +96,36 @@ export default function UserList() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>{u.username}</TableCell>
-                  <TableCell>{u.email}</TableCell>
-                  <TableCell>{u.role}</TableCell>
-                  <TableCell>{u.active ? 'Active' : 'Inactive'}</TableCell>
+              {users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    No users found.
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                users.map((u, idx) => (
+                  <TableRow key={u.id} hover>
+                    <TableCell>{page * rowsPerPage + idx + 1}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>{u.username}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={u.role}
+                        color={roleColors[u.role] || 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={u.active ? 'Active' : 'Inactive'}
+                        color={u.active ? 'success' : 'error'}
+                        size="small"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>

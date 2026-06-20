@@ -12,6 +12,7 @@ import Login from './features/auth/pages/Login';
 import Register from './features/auth/pages/Register';
 import UserList from './features/users/pages/UserList';
 import Profile from './features/auth/pages/Profile';
+import DashboardHome from './features/dashboard/DashboardHome';
 
 // Protected route wrapper using useEffect to redirect
 function ProtectedRoute({ children }) {
@@ -69,7 +70,7 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="/users" replace />} />
+              <Route index element={<DashboardHome />} />
               <Route path="users" element={<UserList />} />
               <Route path="profile" element={<Profile />} />
             </Route>
