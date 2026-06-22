@@ -53,6 +53,14 @@ public class SalesOrder extends BaseEntity {
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
     /**
+     * Current payment method.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
+    @Builder.Default
+    private PaymentMethod paymentMethod = PaymentMethod.CASH;
+
+    /**
      * Sum of all line totals before discount/tax.
      */
     @Column(nullable = false, precision = 12, scale = 2)

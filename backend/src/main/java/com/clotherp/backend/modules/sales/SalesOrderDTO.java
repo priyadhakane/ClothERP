@@ -27,6 +27,7 @@ public class SalesOrderDTO {
 
     private PaymentStatus     paymentStatus;
     private String            paymentStatusLabel;
+    private PaymentMethod     paymentMethod;
 
     private BigDecimal        subtotal;
     private BigDecimal        discountAmount;

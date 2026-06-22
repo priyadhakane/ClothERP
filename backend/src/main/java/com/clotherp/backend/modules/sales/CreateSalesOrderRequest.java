@@ -39,4 +39,6 @@ public class CreateSalesOrderRequest {
     private String shippingAddress;
 
     private String notes;
+
+    private PaymentMethod paymentMethod;
 }
