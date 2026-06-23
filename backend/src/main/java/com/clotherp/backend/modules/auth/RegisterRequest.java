@@ -6,8 +6,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.util.UUID;
-
 @Data
 public class RegisterRequest {
 
@@ -27,5 +25,5 @@ public class RegisterRequest {
 
     private Role role;      // ← no @NotNull — defaults handled in service
 
-    private UUID branchId;
+    private String branchId;
 }
