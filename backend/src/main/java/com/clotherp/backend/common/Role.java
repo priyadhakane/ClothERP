@@ -13,7 +13,6 @@ import java.util.Set;
 public enum Role {
 
     SUPER_ADMIN(Set.of(Permission.ALL)),
-    ADMIN(Set.of(Permission.ALL)),
     OWNER(Set.of(Permission.ALL)),
 
     BRANCH_MANAGER(Set.of(

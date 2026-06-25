@@ -1,6 +1,8 @@
 package com.clotherp.backend.config;
 
 import com.clotherp.backend.common.Role;
+import com.clotherp.backend.modules.admin.SystemSetting;
+import com.clotherp.backend.modules.admin.SystemSettingRepository;
 import com.clotherp.backend.modules.branch.Branch;
 import com.clotherp.backend.modules.branch.BranchRepository;
 import com.clotherp.backend.modules.user.User;
@@ -18,6 +20,7 @@ import java.util.List;
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
 
+    private final SystemSettingRepository systemSettingRepository;
     private final UserRepository  userRepository;
     private final PasswordEncoder passwordEncoder;
     private final BranchRepository branchRepository;
@@ -55,6 +58,23 @@ public class DataSeeder implements CommandLineRunner {
             log.info("DataSeeder: branches already exist — skipping branch seed.");
         }
 
+        // Seed system settings if empty
+        if (systemSettingRepository.count() == 0) {
+            SystemSetting tax = SystemSetting.builder()
+                    .key("tax.rate")
+                    .value("18.0")
+                    .description("Default GST rate (%)")
+                    .publicAccess(true)
+                    .build();
+            SystemSetting currency = SystemSetting.builder()
+                    .key("currency.symbol")
+                    .value("₹")
+                    .description("Default currency symbol")
+                    .publicAccess(true)
+                    .build();
+            systemSettingRepository.saveAll(List.of(tax, currency));
+        }
+
         // ── 2. Seed super-admin user ─────────────────────────────────────────
         if (userRepository.count() > 0) {
             log.info("DataSeeder: skipping — users already exist.");
@@ -65,7 +85,7 @@ public class DataSeeder implements CommandLineRunner {
             .username("superadmin")
             .email("superadmin@clotherp.com")
             .password(passwordEncoder.encode("Admin@1234"))
-            .fullName("Super Administrator")
+           // .fullName("Super Administrator")
             .role(Role.SUPER_ADMIN)
             .active(true)
             .build();
