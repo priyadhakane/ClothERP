@@ -64,6 +64,7 @@ const emptyForm = {
   material: '',
   initialQuantity: 0,
   rackLocation: '',
+  branchId: '',
 };
 
 export default function ProductList() {
@@ -126,7 +127,8 @@ export default function ProductList() {
   const fetchProducts = useCallback(async () => {
     setError(null);
     try {
-      const data = await productApi.listProducts(page, rowsPerPage);
+      const branchFilter = isSuperAdmin ? selectedBranchId : user?.branchId;
+      const data = await productApi.listProducts(page, rowsPerPage, branchFilter);
       if (mountedRef.current) {
         setProducts(data.content || []);
         setTotal(data.totalElements || 0);
@@ -138,7 +140,7 @@ export default function ProductList() {
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [page, rowsPerPage]);
+  }, [page, rowsPerPage, isSuperAdmin, selectedBranchId, user]); // ✅ added `user` to dependencies
 
   useEffect(() => {
     mountedRef.current = true;
@@ -243,7 +245,12 @@ export default function ProductList() {
   // ── Dialog handlers ──
   const openCreate = () => {
     setEditing(null);
-    setForm({ ...emptyForm, initialQuantity: 0, rackLocation: '' });
+    setForm({
+      ...emptyForm,
+      initialQuantity: 0,
+      rackLocation: '',
+      branchId: isSuperAdmin ? selectedBranchId : user?.branchId || '',
+    });
     setFormError('');
     setDialogOpen(true);
   };
@@ -262,19 +269,20 @@ export default function ProductList() {
       material: product.material || '',
       initialQuantity: 0,
       rackLocation: '',
+      branchId: product.branchId || '',
     });
     setFormError('');
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    const effectiveBranch = selectedBranchId || user?.branchId;
+    const effectiveBranch = form.branchId || selectedBranchId || user?.branchId;
     if (!form.name.trim() || !form.sku.trim() || !form.price) {
       setFormError('Name, SKU, and Price are required.');
       return;
     }
-    if (!effectiveBranch && form.initialQuantity > 0) {
-      setFormError('Cannot add initial stock without a branch. Please select a branch.');
+    if (!effectiveBranch) {
+      setFormError('Branch is required. Please select a branch.');
       return;
     }
     setSaving(true);
@@ -284,6 +292,7 @@ export default function ProductList() {
         ...form,
         price: parseFloat(form.price),
         cost: parseFloat(form.cost) || 0,
+        branchId: effectiveBranch,
       };
       let productResponse;
       if (editing) {
@@ -340,7 +349,6 @@ export default function ProductList() {
       : true
   );
 
-  // ── Render ──
   return (
     <Box>
       <PageHeader
@@ -374,7 +382,6 @@ export default function ProductList() {
         }
       />
 
-      {/* Branch selector for superadmin */}
       {isSuperAdmin && (
         <FormControl sx={{ mb: 2, minWidth: 200 }} size="small">
           <InputLabel id="branch-select-label">Branch</InputLabel>
@@ -599,6 +606,24 @@ export default function ProductList() {
               />
             </Stack>
 
+            {isSuperAdmin && (
+              <TextField
+                select
+                label="Branch *"
+                fullWidth
+                value={form.branchId}
+                onChange={(e) => setForm((f) => ({ ...f, branchId: e.target.value }))}
+                disabled={saving || !!editing}
+                helperText={editing ? 'Branch cannot be changed' : ''}
+              >
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>
+                    {b.name} ({b.code})
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
             {!editing && (
               <>
                 <Divider />
@@ -622,8 +647,8 @@ export default function ProductList() {
                     disabled={saving}
                   />
                 </Stack>
-                {isSuperAdmin && !selectedBranchId && (
-                  <Alert severity="warning">Please select a branch first to add initial stock.</Alert>
+                {isSuperAdmin && !form.branchId && (
+                  <Alert severity="warning">Please select a branch to add initial stock.</Alert>
                 )}
               </>
             )}
@@ -637,7 +662,6 @@ export default function ProductList() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <ConfirmDialog
         open={deleteDialog.open}
         title="Delete Product"
