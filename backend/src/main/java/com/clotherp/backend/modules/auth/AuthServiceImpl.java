@@ -24,7 +24,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import com.clotherp.backend.common.*;
 import com.clotherp.backend.security.UserPrincipal;
@@ -101,29 +100,44 @@ public class AuthServiceImpl implements AuthService {
     }
 
     // ── Register (used by Super Admin to create other users) ─────────────────
-
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        // Bootstrap: first user becomes SUPER_ADMIN
+        boolean isFirstUser = (userRepository.count() == 0);
 
+        if (isFirstUser) {
+            // Force SUPER_ADMIN and bypass privilege checks
+            Role role = Role.SUPER_ADMIN;
+            User admin = User.builder()
+                    .username(request.getUsername())
+                    .email(request.getEmail())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .fullName(request.getFullName())
+                    .role(role)
+                    .branchId(request.getBranchId()) // can be null for superadmin
+                    .active(true)
+                    .build();
+            userRepository.save(admin);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(admin.getUsername());
+            return issueTokens(userDetails, admin);
+        }
+
+        // Normal registration logic
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT, "Username already taken");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT, "Email already registered");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
 
-        // Hybrid approach: check if requesting privileged role
+        // Privileged role check
         if (isPrivilegedRole(request.getRole())) {
-            // Only authenticated admins can create privileged users
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "Only administrators can create users with privileged roles");
             }
-
             UserPrincipal userPrincipal = (UserPrincipal) auth.getPrincipal();
             if (!isAdminRole(userPrincipal.getRole())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -131,27 +145,22 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        // Default to SALES_EXECUTIVE if role not provided
-        Role role = request.getRole() != null
-            ? request.getRole()
-            : Role.SALES_EXECUTIVE;
-
+        Role role = request.getRole() != null ? request.getRole() : Role.SALES_EXECUTIVE;
         User user = User.builder()
-            .username(request.getUsername())
-            .email(request.getEmail())
-            .password(passwordEncoder.encode(request.getPassword()))
-            .fullName(request.getFullName())
-            .role(role)
-            .branchId(request.getBranchId() != null ? request.getBranchId() : null)
-            .active(true)
-            .build();
-
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .role(role)
+                .branchId(request.getBranchId())
+                .active(true)
+                .build();
         userRepository.save(user);
 
-        UserDetails userDetails =
-            userDetailsService.loadUserByUsername(user.getUsername());
+        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
         return issueTokens(userDetails, user);
     }
+
 
     @Override
     @Transactional
@@ -244,22 +253,23 @@ String username = jwtTokenProvider.extractUsername(refreshToken);
             .build();
     }
 
-    @Override
-    @Transactional
-    public void registerFirstAdmin(RegisterRequest request) {
-       if(userRepository.count() > 0) {
-        throw new ResponseStatusException(HttpStatus.CONFLICT, "Admin already exists");
-       }
-       User admin = User.builder().username(request.getUsername())
-            .email(request.getEmail())
-            .password(passwordEncoder.encode(request.getPassword()))
-            .fullName(request.getFullName())
-            .role(Role.SUPER_ADMIN)
-            .branchId(request.getBranchId() != null 
-              ? request.getBranchId() 
-              : null) 
-            .active(true)
-            .build();
-        userRepository.save(admin);         
-    }
+    // @Override
+    // @Transactional
+    // public void registerFirstAdmin(RegisterRequest request) {
+    //    if(userRepository.count() > 0) {
+    //     throw new ResponseStatusException(HttpStatus.CONFLICT, "Admin already exists");
+    //    }
+    //    User admin = User.builder().username(request.getUsername())
+    //         .email(request.getEmail())
+    //         .password(passwordEncoder.encode(request.getPassword()))
+    //         .fullName(request.getFullName())
+    //         .role(Role.SUPER_ADMIN)
+    //         .branchId(request.getBranchId() != null 
+    //           ? request.getBranchId() 
+    //           : null) 
+    //         .active(true)
+    //         .build();
+    //     userRepository.save(admin);         
+    // }
+
 }
