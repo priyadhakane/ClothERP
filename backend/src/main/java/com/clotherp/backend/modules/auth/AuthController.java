@@ -34,29 +34,12 @@ public class AuthController {
     // First ever registration (no users in DB) always creates a SUPER_ADMIN.
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<String>> register(
-            @Valid @RequestBody RegisterRequest request) {
-
-        // Bootstrap: first ever user becomes SUPER_ADMIN
-        if (userRepository.count() == 0) {
-            authService.registerFirstAdmin(request);
-            return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(
-                    "Super Admin created successfully. Please login.",
-                    "Setup complete"));
-        }
-
-        // Ongoing: delegate to service — it enforces role-based access internally
-        authService.register(request);
-
-        return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(ApiResponse.ok(
-                "Registration successful. Please login.",
-                "Registration complete"));
+    public ResponseEntity<ApiResponse<AuthResponse>> register(
+        @Valid @RequestBody RegisterRequest request){
+    AuthResponse response = authService.register(request);
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResponse.ok(response, "Registration successful"));
     }
-
     // ── Refresh token ────────────────────────────────────────────────────────
 
     @PostMapping("/refresh")
