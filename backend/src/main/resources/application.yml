@@ -25,6 +25,6 @@ server:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:your-very-long-secret-key-at-least-32-chars}
-    expiration: 900000          # 15 min
-    refresh-expiration: 604800000 # 7 days (matches Redis TTL if you set it accordingly)
+    secret: ${JWT_SECRET:ad8e63fd155cd44e9bebdacb8f5a8fe7}
+    expiration: 900000          # 15 min (in ms)
+    refresh-expiration: 604800000 # 7 days (matches Redis TTL if you set it accordingly) 

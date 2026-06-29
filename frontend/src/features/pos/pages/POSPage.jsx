@@ -40,11 +40,9 @@ import PageHeader from '../../../components/common/PageHeader';
 import { posApi } from '../posApi';
 import { branchApi } from '../../branch/branchApi';
 
-// ── Currency formatter ──
 const inr = (v) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
-// ── Payment methods ──
 const PAYMENT_METHODS = ['CASH', 'CARD', 'UPI', 'SPLIT'];
 
 export default function POSPage() {
@@ -52,12 +50,10 @@ export default function POSPage() {
   const { showToast } = useToast();
   const isSuperAdmin = usePermission('ALL');
 
-  // ── Branch state (for superadmin) ──
   const [branches, setBranches] = useState([]);
   const [branchesLoading, setBranchesLoading] = useState(true);
   const [selectedBranchId, setSelectedBranchId] = useState(user?.branchId || '');
 
-  // ── POS state ──
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -73,6 +69,28 @@ export default function POSPage() {
   const [lastOrder, setLastOrder] = useState(null);
 
   const mountedRef = useRef(true);
+
+  // ── Restore receipt from sessionStorage ──
+  useEffect(() => {
+    const storedOrder = sessionStorage.getItem('pos_lastOrder');
+    const storedComplete = sessionStorage.getItem('pos_orderComplete');
+    if (storedOrder && storedComplete === 'true') {
+      setLastOrder(JSON.parse(storedOrder));
+      setOrderComplete(true);
+    }
+  }, []);
+
+  const saveReceipt = (order) => {
+    sessionStorage.setItem('pos_lastOrder', JSON.stringify(order));
+    sessionStorage.setItem('pos_orderComplete', 'true');
+  };
+
+  const clearReceipt = () => {
+    setOrderComplete(false);
+    setLastOrder(null);
+    sessionStorage.removeItem('pos_lastOrder');
+    sessionStorage.removeItem('pos_orderComplete');
+  };
 
   // ── Fetch branches if superadmin ──
   useEffect(() => {
@@ -109,7 +127,7 @@ export default function POSPage() {
     }
     setSearching(true);
     try {
-      const res = await posApi.searchProducts(search, branchId); // ✅ pass branchId
+      const res = await posApi.searchProducts(search, branchId);
       setSearchResults(res || []);
     } catch (err) {
       showToast('Failed to search products', err);
@@ -242,6 +260,7 @@ export default function POSPage() {
       const result = await posApi.checkout(payload);
       setLastOrder(result);
       setOrderComplete(true);
+      saveReceipt(result);
       clearCart();
       showToast('Order completed successfully!', 'success');
     } catch (err) {
@@ -251,7 +270,6 @@ export default function POSPage() {
     }
   };
 
-  // ── Render ──
   const effectiveBranchId = isSuperAdmin ? selectedBranchId : user?.branchId;
 
   if (!isSuperAdmin && !user?.branchId) {
@@ -271,7 +289,19 @@ export default function POSPage() {
           <Button
             variant="outlined"
             startIcon={<Receipt />}
-            onClick={() => setOrderComplete(!orderComplete)}
+            onClick={() => {
+              if (orderComplete) {
+                clearReceipt();
+              } else {
+                const stored = sessionStorage.getItem('pos_lastOrder');
+                if (stored) {
+                  setLastOrder(JSON.parse(stored));
+                  setOrderComplete(true);
+                } else {
+                  showToast('No recent receipt found.', 'info');
+                }
+              }
+            }}
           >
             {orderComplete ? 'Hide Receipt' : 'View Last Receipt'}
           </Button>
@@ -314,18 +344,21 @@ export default function POSPage() {
             borderRadius: 2,
           }}
         >
-          <Typography variant="h6" fontWeight={700} color="success.main">
-            ✅ Order # {lastOrder.orderNumber} completed
-          </Typography>
-          <Typography variant="body2">Total: {inr(lastOrder.totalAmount)}</Typography>
-          <Button size="small" onClick={() => setOrderComplete(false)}>
-            Close
-          </Button>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h6" fontWeight={700} color="success.main">
+                ✅ Order # {lastOrder.orderNumber} completed
+              </Typography>
+              <Typography variant="body2">Total: {inr(lastOrder.totalAmount)}</Typography>
+            </Box>
+            <Button size="small" onClick={clearReceipt}>
+              Close
+            </Button>
+          </Stack>
         </Paper>
       )}
 
       <Grid container spacing={3}>
-        {/* ── Left column: Product search + cart ── */}
         <Grid item xs={12} md={8}>
           <Paper
             elevation={0}
@@ -368,7 +401,7 @@ export default function POSPage() {
                     </TableHead>
                     <TableBody>
                       {searchResults.map((p) => (
-                        <TableRow key={p.id} hover>
+                        <TableRow key={p.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                           <TableCell>{p.name}</TableCell>
                           <TableCell>{p.sku}</TableCell>
                           <TableCell>{inr(p.price)}</TableCell>
@@ -390,7 +423,6 @@ export default function POSPage() {
             )}
           </Paper>
 
-          {/* ── Cart table ── */}
           <Paper
             elevation={0}
             sx={{
@@ -422,7 +454,7 @@ export default function POSPage() {
                     </TableRow>
                   ) : (
                     cart.map((item) => (
-                      <TableRow key={item.productId} hover>
+                      <TableRow key={item.productId} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                         <TableCell>
                           <Typography variant="body2" fontWeight={600}>
                             {item.name}
@@ -511,7 +543,6 @@ export default function POSPage() {
           </Paper>
         </Grid>
 
-        {/* ── Right column: Customer + Summary + Checkout ── */}
         <Grid item xs={12} md={4}>
           <Paper
             elevation={0}
@@ -576,7 +607,6 @@ export default function POSPage() {
             )}
           </Paper>
 
-          {/* ── Order summary ── */}
           <Paper
             elevation={0}
             sx={{
@@ -640,7 +670,6 @@ export default function POSPage() {
             </Stack>
           </Paper>
 
-          {/* ── Payment method ── */}
           <Paper
             elevation={0}
             sx={{
@@ -673,11 +702,7 @@ export default function POSPage() {
             fullWidth
             variant="contained"
             size="large"
-            disabled={
-              cart.length === 0 ||
-              checkoutLoading ||
-              !effectiveBranchId
-            }
+            disabled={cart.length === 0 || checkoutLoading || !effectiveBranchId}
             onClick={handleCheckout}
             sx={{ py: 1.5, fontWeight: 700 }}
           >

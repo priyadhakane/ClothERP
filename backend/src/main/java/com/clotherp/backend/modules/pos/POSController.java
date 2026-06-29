@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.*;
 import com.clotherp.backend.security.UserPrincipal;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
 @RequestMapping("/api/v1/pos")
@@ -64,4 +67,5 @@ public class POSController {
     public ResponseEntity<ApiResponse<POSSessionDTO>> getSession() {
         return ResponseEntity.ok(ApiResponse.ok(posService.getCurrentSession()));
     }
+    
 }
