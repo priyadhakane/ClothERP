@@ -28,8 +28,10 @@ public class POSCheckoutRequest {
     @Valid
     private List<POSCheckoutItem> items;
 
+    @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Builder.Default
     private BigDecimal taxAmount = BigDecimal.ZERO;
 
     @NotNull(message = "Payment method is required")

@@ -2,7 +2,6 @@ package com.clotherp.backend.modules.auth;
 
 import com.clotherp.backend.common.ApiResponse;
 import com.clotherp.backend.modules.user.UserDTO;
-import com.clotherp.backend.modules.user.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService    authService;
-    private final UserRepository userRepository;
 
     // ── Login — always public ────────────────────────────────────────────────
 

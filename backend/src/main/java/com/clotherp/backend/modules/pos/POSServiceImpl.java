@@ -5,7 +5,6 @@ import com.clotherp.backend.modules.customer.Customer;
 import com.clotherp.backend.modules.customer.CustomerRepository;
 import com.clotherp.backend.modules.inventory.InventoryItem;
 import com.clotherp.backend.modules.inventory.InventoryItemRepository;
-import com.clotherp.backend.modules.inventory.InventoryTransactionType;
 import com.clotherp.backend.modules.product.Product;
 import com.clotherp.backend.modules.product.ProductRepository;
 import com.clotherp.backend.modules.sales.*;

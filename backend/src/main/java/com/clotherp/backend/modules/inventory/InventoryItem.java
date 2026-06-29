@@ -4,7 +4,6 @@ import com.clotherp.backend.common.BaseEntity;
 import com.clotherp.backend.modules.product.Product;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Where;
 
 import java.util.UUID;
 
