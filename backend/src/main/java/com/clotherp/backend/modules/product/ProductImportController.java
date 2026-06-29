@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -22,7 +23,8 @@ public class ProductImportController {
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'OWNER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> importProducts(
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "branchId", required = false) UUID branchId) {
         
         try {
             // Validate file is not empty
@@ -45,20 +47,24 @@ public class ProductImportController {
             }
             
             // Import products from Excel
-            ProductImportService.ImportResult result = productImportService.importProductsFromExcel(file);
+            ProductImportService.ImportResult result = productImportService.importProductsFromExcel(file, branchId);
             
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("successCount", result.getSuccessCount());
             responseData.put("errors", result.getErrors());
             
             if (result.hasErrors()) {
-                return ResponseEntity.badRequest()
-                    .body(ApiResponse.<Map<String, Object>>error(
-                        HttpStatus.BAD_REQUEST.value(),
-                        String.format("Imported %d products with %d errors", 
-                            result.getSuccessCount(), 
-                            result.getErrors().size())
-                    ));
+                HttpStatus status = result.getSuccessCount() > 0 ? HttpStatus.OK : HttpStatus.BAD_REQUEST;
+                ApiResponse<Map<String, Object>> response = ApiResponse.<Map<String, Object>>builder()
+                    .success(result.getSuccessCount() > 0)
+                    .statusCode(status.value())
+                    .message(String.format("Imported %d products with %d errors", 
+                        result.getSuccessCount(), 
+                        result.getErrors().size()))
+                    .data(responseData)
+                    .timestamp(java.time.LocalDateTime.now())
+                    .build();
+                return ResponseEntity.status(status).body(response);
             }
             
             return ResponseEntity.ok(
