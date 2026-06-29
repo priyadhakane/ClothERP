@@ -22,8 +22,9 @@ export const productApi = {
   delete: (id) => api.delete(`/products/${id}`),
 
   // Import products from Excel
-  importProducts: (formData) => {
+  importProducts: (formData, branchId) => {
     return api.post('/products/import', formData, {
+      params: { branchId },
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -162,7 +162,7 @@ export default function ProductList() {
       console.log('3️⃣ FormData created, file appended');
 
       console.log('4️⃣ Calling productApi.importProducts...');
-      const result = await productApi.importProducts(formData);
+      const result = await productApi.importProducts(formData, selectedBranchId);
       console.log('5️⃣ Result received:', result);
 
       if (result && result.success !== undefined) {

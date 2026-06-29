@@ -1,17 +1,24 @@
 package com.clotherp.backend.modules.product;
 
-import com.clotherp.backend.common.BusinessException;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.clotherp.backend.common.BusinessException;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
@@ -20,8 +27,7 @@ public class ProductImportService {
 
     private final ProductService productService;
 
-    // ✅ REMOVED @Transactional - this was causing rollback
-    public ImportResult importProductsFromExcel(MultipartFile file) throws Exception {
+    public ImportResult importProductsFromExcel(MultipartFile file, UUID defaultBranchId) throws Exception {
         List<ProductDTO> productsToSave = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         int successCount = 0;
@@ -32,6 +38,8 @@ public class ProductImportService {
             Sheet sheet = workbook.getSheetAt(0);
             DataFormatter dataFormatter = new DataFormatter();
             
+            log.info("=== Starting Excel Import ===");
+            
             // Get the header row
             Row headerRow = sheet.getRow(0);
             if (headerRow == null) {
@@ -39,12 +47,15 @@ public class ProductImportService {
                 return new ImportResult(0, errors);
             }
             
-            // Find column indices by header name
+            // Find column indices
             int nameCol = -1, skuCol = -1, categoryCol = -1, sizeCol = -1;
             int colorCol = -1, priceCol = -1, costCol = -1, materialCol = -1, descCol = -1;
+            int branchIdCol = -1; // NEW: optional branch column
             
             for (int i = 0; i < headerRow.getLastCellNum(); i++) {
                 String header = getCellValue(headerRow.getCell(i), dataFormatter).toLowerCase().trim();
+                log.info("Column {}: '{}'", i, header);
+                
                 if (header.contains("name") || header.equals("name")) nameCol = i;
                 else if (header.contains("sku")) skuCol = i;
                 else if (header.contains("category")) categoryCol = i;
@@ -54,22 +65,24 @@ public class ProductImportService {
                 else if (header.contains("cost")) costCol = i;
                 else if (header.contains("material")) materialCol = i;
                 else if (header.contains("description")) descCol = i;
+                else if (header.contains("branch") || header.contains("branchid")) branchIdCol = i;
             }
             
-            log.info("Column mapping - Name: {}, SKU: {}, Category: {}, Size: {}, Color: {}, Price: {}, Cost: {}, Material: {}, Description: {}", 
-                nameCol, skuCol, categoryCol, sizeCol, colorCol, priceCol, costCol, materialCol, descCol);
+            log.info("Column mapping - Name: {}, SKU: {}, Category: {}, Size: {}, Color: {}, Price: {}, Cost: {}, Material: {}, Description: {}, Branch: {}", 
+                nameCol, skuCol, categoryCol, sizeCol, colorCol, priceCol, costCol, materialCol, descCol, branchIdCol);
             
-            // Process rows (skip header row)
+            // Process rows
             for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue; // Skip header
-                if (isRowEmpty(row)) continue; // Skip empty rows
+                if (row.getRowNum() == 0) continue;
+                if (isRowEmpty(row)) continue;
                 
                 int rowNum = row.getRowNum() + 1;
+                log.info("Processing row {}...", rowNum);
                 
                 try {
                     ProductDTO product = ProductDTO.builder().build();
                     
-                    // Name (Required)
+                    // Name
                     String name = nameCol >= 0 ? getCellValue(row.getCell(nameCol), dataFormatter) : "";
                     if (name.isEmpty()) {
                         errors.add("Row " + rowNum + ": Product Name is required");
@@ -77,17 +90,16 @@ public class ProductImportService {
                     }
                     product.setName(name);
                     
-                    // SKU (Required)
+                    // SKU
                     String sku = skuCol >= 0 ? getCellValue(row.getCell(skuCol), dataFormatter) : "";
                     if (sku.isEmpty()) {
                         errors.add("Row " + rowNum + ": SKU is required");
                         continue;
                     }
                     
-                    // Check if SKU already exists
                     try {
                         productService.getProductBySku(sku);
-                        errors.add("Row " + rowNum + ": SKU '" + sku + "' already exists (skipped)");
+                        errors.add("Row " + rowNum + ": SKU '" + sku + "' already exists");
                         continue;
                     } catch (Exception e) {
                         // SKU doesn't exist - good to proceed
@@ -106,7 +118,7 @@ public class ProductImportService {
                     // Material
                     product.setMaterial(materialCol >= 0 ? getCellValue(row.getCell(materialCol), dataFormatter) : "");
                     
-                    // Price (Required)
+                    // Price
                     String priceStr = priceCol >= 0 ? getCellValue(row.getCell(priceCol), dataFormatter) : "";
                     if (priceStr.isEmpty()) {
                         errors.add("Row " + rowNum + ": Price is required");
@@ -129,24 +141,50 @@ public class ProductImportService {
                             continue;
                         }
                     } else {
-                        // If no cost, use price as cost
                         product.setCost(product.getPrice());
                     }
                     
                     // Description
                     product.setDescription(descCol >= 0 ? getCellValue(row.getCell(descCol), dataFormatter) : "");
                     
+                    // ✅ NEW: Get branch ID - if not in Excel, use a default or ask user
+                    String branchIdStr = branchIdCol >= 0 ? getCellValue(row.getCell(branchIdCol), dataFormatter) : "";
+                    UUID branchId = null;
+                    
+                    if (!branchIdStr.isEmpty()) {
+                        try {
+                            branchId = UUID.fromString(branchIdStr);
+                        } catch (IllegalArgumentException e) {
+                            errors.add("Row " + rowNum + ": Invalid branch ID format '" + branchIdStr + "'");
+                            continue;
+                        }
+                    }
+                    
+                    // If branch ID is not provided, use a default
+                    if (branchId == null) {
+                        branchId = defaultBranchId;
+                    }
+                    
+                    if (branchId == null) {
+                        errors.add("Row " + rowNum + ": Branch ID is required. Please select a branch or add a 'Branch' column to your Excel file.");
+                        continue;
+                    }
+                    product.setBranchId(branchId);
+                    
+                    log.info("Row {}: Valid product - Name: {}, SKU: {}, Price: {}, Branch: {}", 
+                        rowNum, product.getName(), product.getSku(), product.getPrice(), branchId);
+                    
                     productsToSave.add(product);
-                    log.info("Row {}: Valid product - Name: {}, SKU: {}, Price: {}", 
-                        rowNum, product.getName(), product.getSku(), product.getPrice());
                     
                 } catch (Exception e) {
                     errors.add("Row " + rowNum + ": " + e.getMessage());
-                    log.error("Error processing row {}: {}", rowNum, e.getMessage());
+                    log.error("Error processing row {}: {}", rowNum, e.getMessage(), e);
                 }
             }
             
-            // ✅ Save each product individually (no transaction)
+            log.info("Total valid products to save: {}", productsToSave.size());
+            
+            // Save each product
             for (ProductDTO product : productsToSave) {
                 try {
                     log.info("Saving product: {} ({})", product.getName(), product.getSku());
